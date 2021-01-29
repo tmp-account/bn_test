@@ -123,8 +123,12 @@ class LoadData:
         else:
             start = start_datetime
 
-        if start > end_datetime:
-            return 'no eny data in time range'
+        if end_datetime is None:
+            if start > datetime.datetime.utcnow():
+                return 'no eny data in time range'
+        else:
+            if start > end_datetime:
+                return 'no eny data in time range'
         # start += datetime.timedelta(microseconds=1)
         end = start
         a = []
