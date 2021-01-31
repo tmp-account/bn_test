@@ -212,7 +212,7 @@ class DataBase:
             err = self.command_query_many(query=query, args=args, write_log=True)
         return err
 
-    def set_last_real_candle_historical_data(self, interval, data): # lfghdfh
+    def set_last_real_candle_historical_data(self, interval, data): #  نیاز به اصلاح نام جداول
         from binance.client import Client
 
         if interval == Client.KLINE_INTERVAL_1MINUTE:
@@ -299,9 +299,80 @@ class DataBase:
 
         query = "select open_time from {0} where symbol = %s and  open_time >= %s and open_time < %s".format(table_name)
         args = (symbol, start_datetime, end_datetime)
-
+        # print(query)
+        # print(args)
         return self.select_query(query=query, args=args, mod=1)
 
+    def add_symbol(self, symbol, coin_base):
+        query = "insert IGNORE into symbols (symbol, coin_base, earlier_valid_timestamp) value (%s, {0}, %s)".format(coin_base)
+        args = symbol
+
+        # print('args length:', len(args))
+        if len(args) == 0:
+            err = "empty data"
+        else:
+            err = self.command_query_many(query=query, args=args, write_log=True)
+        return err
+
+    def get_symbol(self, coin_base=None):
+        if coin_base is None:  # all symbol
+            query = "select symbol, earlier_valid_timestamp, small_valid_interval from symbols"
+            args = ()
+        else:
+            query = "select symbol, earlier_valid_timestamp, small_valid_interval from symbols where coin_base = %s"
+            args = (coin_base)
+
+        res = self.select_query(query=query, args=args, mod=1)
+
+        return res
+
+    def get_symbol_list(self, coin_base=None):
+        res = self.get_symbol(coin_base=coin_base)
+        if res is False:
+            return []
+        else:
+            temp = []
+            for symbol in res:
+                # temp.append(symbol[0])
+                temp.append(symbol)
+            return temp
+
+    def set_small_valid_interval(self, symbol, coin_base, small_valid_interval):
+        query = 'update symbols set small_valid_interval = %s where symbol = %s and coin_base = %s'
+        args = (small_valid_interval, symbol, coin_base)
+
+        res = self.command_query(query=query, args=args, write_log=True)
+        return res
 
 # ------------------------------------------------------
 
+if __name__ == "__main__":
+    import app_setting
+    db = DataBase(db_info=app_setting.get_db_info(db_server_id=app_setting.client_id),log_obj=None)
+
+    # print(db.set_small_valid_interval(symbol='1INCHBTC', coin_base='BTC', small_valid_interval='1h'))
+    print(db.get_symbol(coin_base='BTC'))
+    print(db.get_symbol_list(coin_base='BTC'))
+
+
+    # ---------------------
+    # import api_setting
+    # res = db.add_symbol(api_setting.symbol_ETH_list, "'ETH'")
+    # print(res)
+    # res = db.add_symbol(api_setting.symbol_BNB_list, "'BNB'")
+    # print(res)
+    # res = db.add_symbol(api_setting.symbol_BTC_list, "'BTC'")
+    # print(res)
+    # res = db.add_symbol(api_setting.symbol_USDT_list, "'USDT'")
+    # print(res)
+    # res = db.add_symbol(api_setting.symbol_TRX_list, "'TRX'")
+    # print(res)
+    # res = db.add_symbol(api_setting.symbol_XRP_list, "'XRP'")
+    # print(res)
+
+    # ---------------------
+    # res = db.get_symbol(coin_base='BTC')
+    # print(res)
+    #
+    # res = db.get_symbol_list(coin_base='BTC')
+    # print(res)
