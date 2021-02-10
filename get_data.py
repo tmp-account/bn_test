@@ -3,10 +3,45 @@ from database import DataBase
 import datetime
 from time import sleep
 
+from urllib.request import urlopen
+import json
+
+
+def get_ip_info():
+    # ip, city, region, country, loc, org, timezone, readme
+    response = urlopen('http://ipinfo.io/json')
+    data = json.load(response)
+    return data
+
+def getPublicIp():
+    import re
+    data = str(urlopen('http://checkip.dyndns.com/').read())
+    # data='<html><head><title>Current IP Check</title></head><body>Current IP Address: 65.96.168.198</body></html>\r\n'
+
+    return re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(data).group(1)
+
+def get_lan_ip():
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        # s.connect(('10.255.255.255', 1))
+        s.connect(("8.8.8.8", 80))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
 
 class LoadData:
 
-    def __init__(self, api_key, api_secret, db_info, timestamp_base_time, is_test=True):
+    def __init__(self, api_key, api_secret, db_info, timestamp_base_time, is_test=True, public_ip=None):
+        ip_info = get_ip_info()
+        if ip_info['country'] == 'IR':
+            print('bad country')
+            exit(0)
+
         self.timestamp_base_time = timestamp_base_time
         self.client = Client(api_key, api_secret)
         # for test unit
@@ -24,6 +59,10 @@ class LoadData:
 
     def _load_and_set_complete_candle_historical(self, symbol, interval, start_datetime, end_datetime, add_to_database = True):
         try:
+            ip_info = get_ip_info()
+            if ip_info['country'] == 'IR':
+                raise Exception('bad country')
+
             result = []
             data = self.client.get_historical_klines(symbol=symbol, interval=interval, start_str=str(start_datetime),
                                                      end_str=str(end_datetime))

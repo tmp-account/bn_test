@@ -68,7 +68,7 @@ def get_db_info(db_server_id):
             'db_name': 'binance_data',
             'db_username': 'CD2_R',
             'db_user_password': 'Asdf@13579.',
-            'db_host_name': '85.185.181.235',
+            'db_host_name': '85.185.185.135',
             'db_port': 3306
         }
 
@@ -77,7 +77,7 @@ def get_db_info(db_server_id):
             'db_name': 'binance_data',
             'db_username': 'CD2_R',
             'db_user_password': 'Asdf@13579.',
-            'db_host_name': '192.168.1.35',
+            'db_host_name': '95.216.57.116',
             'db_port': 3306
         }
 

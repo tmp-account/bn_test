@@ -1,12 +1,17 @@
 import datetime
 from binance.client import Client as c
 
+# test
 test_api_key = "AibX2zigFqfEHTCmuV0pIXtM5rCCk6c2SUnBeF5Hxn78yF40V29n0imCRgV7V5Hq"
 test_api_secret = "kLO5DN3Nv38W2uYzBkJrrTpnLfzjCUu8qHhi0gDlkxjk4AsqSHyyrAXxzaUkiS3N"
 
+# crypto
+# api_key = "xCTmpTB1thBdiHpLhtHGLbWwE3FBM9f8DeSls1ZOssHnGgh18a2Rustu1aElc41k"
+# api_secret = "sFq09v9KbFjjGr7QdzwYL56ZoKZmuL3R0adVttTnEUl3AbZPfi0ijo9XDwYi2YPh"
 
-api_key = "xCTmpTB1thBdiHpLhtHGLbWwE3FBM9f8DeSls1ZOssHnGgh18a2Rustu1aElc41k"
-api_secret = "sFq09v9KbFjjGr7QdzwYL56ZoKZmuL3R0adVttTnEUl3AbZPfi0ijo9XDwYi2YPh"
+# binance_api
+api_key = "kzWnN0vx3IN4ZJ66vbYZ6ZU8zjoe1cZjNGbFcYni5pQ6eB3O5DID2KRpJdCjNx7g"
+api_secret = "lYd3mAcnHZqQmpL6Z8cKcrYGjmGw6rxA1uaOmNERf342rK0VnasRxKV7RzCmLh2R"
 
 timestamp_base_time = datetime.datetime(year=1970, month=1, day=1)
 

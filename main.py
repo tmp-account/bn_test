@@ -4,6 +4,7 @@ from api_setting import *
 from app_setting import *
 import datetime
 
+db_server_id = 2
 
 Client_KLINE_INTERVAL_dict = {Client.KLINE_INTERVAL_1MINUTE: 0,
                               Client.KLINE_INTERVAL_3MINUTE: 1,
@@ -67,12 +68,13 @@ def get_all_data(interval_list, coin_base_list, db_server_id):
                                                                   earlier_valid_timestamp=earlier_valid_timestamp)
                 print(err)
                 print("========================================================================")
+                time.sleep(0.1)
 
 
 if __name__ == "__main__":
     import time
 
-    db_server_id = 2
+    db_server_id = 4
 
     get_all_data(interval_list=interval_list, coin_base_list=coin_base_list, db_server_id=db_server_id)
 

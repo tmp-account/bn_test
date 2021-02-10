@@ -4,7 +4,7 @@ from api_setting import *
 from app_setting import *
 import datetime
 
-db_server_id = 5
+db_server_id = 1
 
 Client_KLINE_INTERVAL_dict = {Client.KLINE_INTERVAL_1MINUTE: 0,
                               Client.KLINE_INTERVAL_3MINUTE: 1,
@@ -21,7 +21,6 @@ Client_KLINE_INTERVAL_dict = {Client.KLINE_INTERVAL_1MINUTE: 0,
                               Client.KLINE_INTERVAL_3DAY: 12,
                               Client.KLINE_INTERVAL_1WEEK: 13,
                               Client.KLINE_INTERVAL_1MONTH: 14}
-
 
 def get_all_data(interval_list, coin_base_list, db_server_id):
     cli = LoadData(api_key=api_key, api_secret=api_secret, db_info=get_db_info(db_server_id=db_server_id),
@@ -69,12 +68,15 @@ def get_all_data(interval_list, coin_base_list, db_server_id):
                                                                   earlier_valid_timestamp=earlier_valid_timestamp)
                 print(err)
                 print("========================================================================")
+                time.sleep(0.1)
 
 
 if __name__ == "__main__":
     import time
+    start_time = datetime.datetime.utcnow()
 
     get_all_data(interval_list=interval_list, coin_base_list=coin_base_list, db_server_id=db_server_id)
+    end_time = datetime.datetime.utcnow()
 
-    print('sleep')
-    time.sleep(100)
+    print('end function ==> start time: {0} end time: {1} run time: {2}'
+          .format(start_time, end_time, end_time - start_time))

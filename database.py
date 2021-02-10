@@ -348,7 +348,13 @@ class DataBase:
 
 if __name__ == "__main__":
     import app_setting
-    db = DataBase(db_info=app_setting.get_db_info(db_server_id=app_setting.client_id),log_obj=None)
+    import psutil
+
+    db_server_id = 2
+
+    print(psutil.disk_usage('D:'))
+    # db = DataBase(db_info=app_setting.get_db_info(db_server_id=app_setting.client_id),log_obj=None)
+    db = DataBase(db_info=app_setting.get_db_info(db_server_id=db_server_id),log_obj=None)
 
     # print(db.set_small_valid_interval(symbol='1INCHBTC', coin_base='BTC', small_valid_interval='1h'))
     print(db.get_symbol(coin_base='BTC'))
