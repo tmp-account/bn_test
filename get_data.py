@@ -9,9 +9,13 @@ import json
 
 def get_ip_info():
     # ip, city, region, country, loc, org, timezone, readme
-    response = urlopen('http://ipinfo.io/json')
-    data = json.load(response)
-    return data
+    try:
+        response = urlopen('http://ipinfo.io/json')
+        data = json.load(response)
+        return data
+    except Exception as e:
+        return e
+
 
 def getPublicIp():
     import re
@@ -38,9 +42,15 @@ class LoadData:
 
     def __init__(self, api_key, api_secret, db_info, timestamp_base_time, is_test=True, public_ip=None):
         ip_info = get_ip_info()
-        if ip_info['country'] == 'IR':
-            print('bad country')
-            exit(0)
+        if type(ip_info) == type({}):
+            if ip_info['country'] == 'IR':
+                print('bad country')
+                exit(0)
+        else:
+            if str(ip_info) == 'HTTP Error 429: Too Many Requests':
+                print(ip_info)
+            else:
+                exit(0)
 
         self.timestamp_base_time = timestamp_base_time
         self.client = Client(api_key, api_secret)
@@ -50,6 +60,8 @@ class LoadData:
 
         self.db = DataBase(db_info=db_info, log_obj=None)
 
+        self.ip_check_count = 0
+
     def timestamp_to_datetime(self, timestamp):
         return self.timestamp_base_time + datetime.timedelta(seconds=timestamp / 1000)
 
@@ -57,11 +69,21 @@ class LoadData:
         server_timestamp = self.client.get_server_time()
         return self.timestamp_to_datetime(server_timestamp['serverTime'])
 
-    def _load_and_set_complete_candle_historical(self, symbol, interval, start_datetime, end_datetime, add_to_database = True):
+    def _load_and_set_complete_candle_historical(self, symbol, interval, start_datetime, end_datetime, add_to_database=True):
         try:
-            ip_info = get_ip_info()
-            if ip_info['country'] == 'IR':
-                raise Exception('bad country')
+            if self.ip_check_count >= 9:
+                self.ip_check_count = 0
+                ip_info = get_ip_info()
+                if type(ip_info) == type({}):
+                    if ip_info['country'] == 'IR':
+                        raise Exception('bad country')
+                else:
+                    if str(ip_info) == 'HTTP Error 429: Too Many Requests':
+                        print('ip_info: HTTP Error 429: Too Many Requests')
+                    else:
+                        raise Exception(ip_info)
+            else:
+                self.ip_check_count += 1
 
             result = []
             data = self.client.get_historical_klines(symbol=symbol, interval=interval, start_str=str(start_datetime),
@@ -85,7 +107,8 @@ class LoadData:
 
         except Exception as e:
             print(str(e))
-            sleep(10)
+            print('sleep 60 second')
+            sleep(60)
             return str(e)
 
     def get_candle_open_time(self, interval, date_time):
@@ -241,11 +264,16 @@ class LoadData:
                 a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval, start_datetime=start,
                                                                   end_datetime=end- datetime.timedelta(seconds=1),
                                                                   add_to_database=add_to_database)
-                for item in a:
-                    # print(item)
-                    sum += 1
-                    t_sum += 1
-                print('sum round records ', sum)
+                try:
+                    for item in a:
+                        # print(item)
+                        sum += 1
+                        t_sum += 1
+                        print('sum round records ', sum)
+
+                except Exception as e:
+                    print(a)
+                    print(e)
 
             else:  # len(complete_open_time_list) == len(res)
                 temp = []
@@ -264,15 +292,20 @@ class LoadData:
                                                                           start_datetime=start,
                                                                           end_datetime=end- datetime.timedelta(seconds=1),
                                                                           add_to_database=add_to_database)
-                        for item in a:
-                            print(item)
-                            sum += 1
-                            t_sum += 1
-                        print('sum round records ', sum)
+                        try:
+                            for item in a:
+                                # print(item)
+                                sum += 1
+                                t_sum += 1
+                                print('sum round records ', sum)
+
+                        except Exception as e:
+                            print(a)
+                            print(e)
                         break
                     j += 1
 
-            if db_have_data == True:
+            if db_have_data is True:
                 print('** database have data **')
 
             # print('11111 ', 'start', start, 'end', end)
@@ -486,6 +519,12 @@ if __name__ == "__main__":
     # t = start_datetime + datetime.timedelta(seconds=-1, microseconds=0)
     # print(t)
     # print(cli.get_last_candle_open_time(interval=interval, date_time=t))
+    res = cli.client.get_exchange_info()
+    print(res)
+
+    sleep(1000)
+
+
 
     print('start', start_datetime, 'end', end_datetime)
     res = cli.load_and_set_complete_candle_historical(symbol=symbol, interval=interval, start_datetime=start_datetime, end_datetime=end_datetime,add_to_database=True)
