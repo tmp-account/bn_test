@@ -24,6 +24,7 @@ def getPublicIp():
 
     return re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(data).group(1)
 
+
 def get_lan_ip():
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -31,12 +32,13 @@ def get_lan_ip():
         # doesn't even have to be reachable
         # s.connect(('10.255.255.255', 1))
         s.connect(("8.8.8.8", 80))
-        IP = s.getsockname()[0]
+        ip = s.getsockname()[0]
     except Exception:
-        IP = '127.0.0.1'
+        ip = '127.0.0.1'
     finally:
         s.close()
-    return IP
+    return ip
+
 
 class LoadData:
 
@@ -71,6 +73,7 @@ class LoadData:
 
     def _load_and_set_complete_candle_historical(self, symbol, interval, start_datetime, end_datetime, add_to_database=True):
         try:
+            # check connecting country
             if self.ip_check_count >= 9:
                 self.ip_check_count = 0
                 ip_info = get_ip_info()
@@ -84,15 +87,23 @@ class LoadData:
                         raise Exception(ip_info)
             else:
                 self.ip_check_count += 1
-
+            # ---------------------------------------
             result = []
+            open_time_list = []
+            complete_open_time_list = self.generate_all_complete_candle_open_time(interval=interval,
+                                                                                  start_datetime=start_datetime,
+                                                                                  end_datetime=end_datetime)
+
             data = self.client.get_historical_klines(symbol=symbol, interval=interval, start_str=str(start_datetime),
-                                                     end_str=str(end_datetime))
-            for item in data:
+                                                     end_str=str(end_datetime - datetime.timedelta(seconds=1)))
+
+            for item in data:  # try need
                 # print(data)
                 # result.append([str(timestamp_to_datetime(item[0])),  # open time
+                open_time = self.get_candle_open_time(interval=interval, date_time=self.timestamp_to_datetime(item[0]))
+                open_time_list.append(open_time)
                 result.append([symbol,
-                               self.timestamp_to_datetime(item[0]),  # open time
+                               open_time,  # open time
                                item[1],  # open
                                item[2],  # high
                                item[3],  # low
@@ -100,9 +111,44 @@ class LoadData:
                                item[5],  # volume
                                item[8]  # number of trade
                                ])
+
+            # find no data candle
+            open_time_list_set = set(open_time_list)
+            null_candle = [x for x in complete_open_time_list if x not in open_time_list_set]
+
+            # null_candle = []
+            # null_candle_len = 0
+            # diff_count = len(complete_open_time_list) - len(open_time_list_set)
+            # for x in complete_open_time_list:
+            #     if x not in open_time_list_set:
+            #         null_candle.append(x)
+            #         null_candle_len += 1
+            #         if diff_count == null_candle_len:
+            #             # pass
+            #             break
+
+            # add null candle to result list
+            for item in null_candle:
+                result.append([symbol,
+                               item,  # open time
+                               0,  # open
+                               0,  # high
+                               0,  # low
+                               0,  # close
+                               0,  # volume
+                               0  # number of trade
+                               ])
+
+            if len(complete_open_time_list) != len(result):
+                raise Exception('unexpected data : len(complete_open_time_list) != len(result): {0}!={1}'
+                                .format(len(complete_open_time_list), len(result)))
+            # ---------------------
             if add_to_database is True:
                 err = self.db.set_complete_candle_historical_data(interval=interval, data=result)
                 print('database error: ', err)
+            print('complete_open_time_list: ', len(complete_open_time_list), complete_open_time_list[0], complete_open_time_list[-1])
+            print('binance open_time_list : ', len(open_time_list), open_time_list[0], open_time_list[-1])
+            print('final result: ', len(result))
             return result
 
         except Exception as e:
@@ -253,59 +299,63 @@ class LoadData:
             complete_open_time_list = self.generate_all_complete_candle_open_time(interval=interval, start_datetime=start, end_datetime=end)
             db_open_time_list = self.db.get_complete_candle_historical_open_time(symbol=symbol, interval=interval, start_datetime=start, end_datetime=end)
 
-            print('complete_open_time_list:', len(complete_open_time_list))
-            print('db_open_time_list:', len(db_open_time_list))
-            db_have_data = True
+            try:
+                print('complete_open_time_list:', len(complete_open_time_list), complete_open_time_list[0], complete_open_time_list[-1])
+                print('db_open_time_list:', len(db_open_time_list), db_open_time_list[0], db_open_time_list[-1])
+            except:
+                pass
+            # db_have_data = True
             if len(complete_open_time_list) != len(db_open_time_list):
-                db_have_data = False
+                # db_have_data = False
                 # print('len(complete_open_time_list) != len(db_open_time_list)', len(complete_open_time_list) , len(db_open_time_list))
                 print('start get data: ===>', '  (start_time: ', start, '  end_time: ', end, ')')
                 sum = 0
                 a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval, start_datetime=start,
-                                                                  end_datetime=end- datetime.timedelta(seconds=1),
+                                                                  end_datetime=end, #- datetime.timedelta(seconds=1),
                                                                   add_to_database=add_to_database)
                 try:
                     for item in a:
                         # print(item)
                         sum += 1
                         t_sum += 1
-                        print('sum round records ', sum)
+                    print('sum round records ', sum)
 
                 except Exception as e:
                     print(a)
                     print(e)
 
             else:  # len(complete_open_time_list) == len(res)
-                temp = []
-                for item in db_open_time_list:
-                    temp.append(item[0])
-                db_open_time_list = temp
-                j = 0
-                while j < len(complete_open_time_list):
-                    if complete_open_time_list[j] != db_open_time_list[j]:  # not equal list
-                        db_have_data = False
-                        # print('complete_open_time_list[i] != db_open_time_list[i]', complete_open_time_list[i] , db_open_time_list[i])
-                        print('start get data: ===>', '  (start_time: ', start, '  end_time: ', end, ')')
+                # pass
+                # temp = []
+                # for item in db_open_time_list:
+                #     temp.append(item[0])
+                # db_open_time_list = temp
+                # j = 0
+                # while j < len(complete_open_time_list):
+                #     if complete_open_time_list[j] != db_open_time_list[j]:  # not equal list
+                #         db_have_data = False
+                #         # print('complete_open_time_list[i] != db_open_time_list[i]', complete_open_time_list[i] , db_open_time_list[i])
+                #         print('start get data: ===>', '  (start_time: ', start, '  end_time: ', end, ')')
+                #
+                #         sum = 0
+                #         a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval,
+                #                                                           start_datetime=start,
+                #                                                           end_datetime=end- datetime.timedelta(seconds=1),
+                #                                                           add_to_database=add_to_database)
+                #         try:
+                #             for item in a:
+                #                 # print(item)
+                #                 sum += 1
+                #                 t_sum += 1
+                #             print('sum round records ', sum)
+                #
+                #         except Exception as e:
+                #             print(a)
+                #             print(e)
+                #         break
+                #     j += 1
 
-                        sum = 0
-                        a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval,
-                                                                          start_datetime=start,
-                                                                          end_datetime=end- datetime.timedelta(seconds=1),
-                                                                          add_to_database=add_to_database)
-                        try:
-                            for item in a:
-                                # print(item)
-                                sum += 1
-                                t_sum += 1
-                                print('sum round records ', sum)
-
-                        except Exception as e:
-                            print(a)
-                            print(e)
-                        break
-                    j += 1
-
-            if db_have_data is True:
+            # if db_have_data is True:
                 print('** database have data **')
 
             # print('11111 ', 'start', start, 'end', end)
@@ -502,10 +552,10 @@ if __name__ == "__main__":
     cli = LoadData(api_key=api_key,api_secret=api_secret,db_info=get_db_info(db_server_id=client_id),
                    timestamp_base_time=timestamp_base_time,is_test=False)
 
-    symbol = 'NANOBTC'
-    interval = Client.KLINE_INTERVAL_1DAY
-    start_datetime = datetime.datetime(year=2019, month=1, day=1, hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(seconds=-1, microseconds=0)
-    end_datetime = datetime.datetime(year=2019, month=5, day=1, hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(seconds=0, microseconds=0)
+    symbol = 'ICXETH'
+    interval = Client.KLINE_INTERVAL_1HOUR
+    start_datetime = datetime.datetime(year=2017, month=12, day=18, hour=5, minute=0, second=0, microsecond=0) + datetime.timedelta(seconds=1, microseconds=0)
+    end_datetime = datetime.datetime(year=2018, month=2, day=16, hour=5, minute=0, second=0, microsecond=0) + datetime.timedelta(seconds=0, microseconds=0)
     # print('get_last_candle_open_time: ', cli.get_candle_open_time(interval=interval, date_time=end_datetime))
     #
     # t = start_datetime + datetime.timedelta(seconds=0, microseconds=0)
@@ -519,9 +569,16 @@ if __name__ == "__main__":
     # t = start_datetime + datetime.timedelta(seconds=-1, microseconds=0)
     # print(t)
     # print(cli.get_last_candle_open_time(interval=interval, date_time=t))
-    res = cli.client.get_exchange_info()
-    print(res)
 
+    r = cli.generate_all_complete_candle_open_time(interval,start_datetime,end_datetime)
+    print(len(r), r[0], r[-1])
+
+    # res = cli._load_and_set_complete_candle_historical(symbol=symbol, interval=interval,
+    #                                                    start_datetime=start_datetime, end_datetime=end_datetime, add_to_database=False)
+    # # res = cli.client.get_exchange_info()
+    # print(res)
+
+    print('sleep ------')
     sleep(1000)
 
 
