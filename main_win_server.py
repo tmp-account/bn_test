@@ -36,6 +36,8 @@ def get_all_data(interval_list, coin_base_list, db_server_id):
     print("end time: ", end_time)
     print("-----------------------------------------------------------------------------------")
 
+    count_valid = 0
+    count_invalid = 0
     # symbol_list = [symbol, earlier_valid_timestamp, small_valid_interval]
     for interval in interval_list:
         for coin_base in coin_base_list:
@@ -46,6 +48,8 @@ def get_all_data(interval_list, coin_base_list, db_server_id):
                 if Client_KLINE_INTERVAL_dict[interval] < Client_KLINE_INTERVAL_dict[symbol[2]]:
                     print('symbol: ', symbol[0], '  earlier_valid_timestamp: ', symbol[1],
                           ' small_valid_interval: ', symbol[2], ' current interval: ', interval)
+                    count_invalid += 1
+                    print('invalid count: ', count_invalid)
                     print('interval smallest than small_valid_interval')
                     print("========================================================================")
                     continue
@@ -59,13 +63,15 @@ def get_all_data(interval_list, coin_base_list, db_server_id):
 
                 print('symbol: ', symbol[0], " current interval: ", interval,
                       '  earlier_valid_timestamp: ', earlier_valid_timestamp, ' start_time: ', start)
-
+                count_valid += 1
+                print('count_valid: ', count_valid)
                 err = cli.load_and_set_complete_candle_historical(symbol=symbol[0],
                                                                   interval=interval,
                                                                   start_datetime=start,
                                                                   end_datetime=end_time,
                                                                   add_to_database=True,
                                                                   earlier_valid_timestamp=earlier_valid_timestamp)
+
                 print(err)
                 print("========================================================================")
                 time.sleep(0.1)

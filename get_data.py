@@ -324,38 +324,7 @@ class LoadData:
                     print(a)
                     print(e)
 
-            else:  # len(complete_open_time_list) == len(res)
-                # pass
-                # temp = []
-                # for item in db_open_time_list:
-                #     temp.append(item[0])
-                # db_open_time_list = temp
-                # j = 0
-                # while j < len(complete_open_time_list):
-                #     if complete_open_time_list[j] != db_open_time_list[j]:  # not equal list
-                #         db_have_data = False
-                #         # print('complete_open_time_list[i] != db_open_time_list[i]', complete_open_time_list[i] , db_open_time_list[i])
-                #         print('start get data: ===>', '  (start_time: ', start, '  end_time: ', end, ')')
-                #
-                #         sum = 0
-                #         a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval,
-                #                                                           start_datetime=start,
-                #                                                           end_datetime=end- datetime.timedelta(seconds=1),
-                #                                                           add_to_database=add_to_database)
-                #         try:
-                #             for item in a:
-                #                 # print(item)
-                #                 sum += 1
-                #                 t_sum += 1
-                #             print('sum round records ', sum)
-                #
-                #         except Exception as e:
-                #             print(a)
-                #             print(e)
-                #         break
-                #     j += 1
-
-            # if db_have_data is True:
+            else:
                 print('** database have data **')
 
             # print('11111 ', 'start', start, 'end', end)
@@ -542,6 +511,290 @@ class LoadData:
 
         print("total time:", datetime.datetime.utcnow() - start_def)
         return a
+
+    def _load_and_set_complete_candle_historical_time(self, symbol, interval, start_datetime, end_datetime, add_to_database=True):
+        start_def = datetime.datetime.utcnow()
+        last_stage_time = start_def
+        try:
+            # check connecting country
+            if self.ip_check_count >= 9:
+                self.ip_check_count = 0
+                ip_info = get_ip_info()
+                if type(ip_info) == type({}):
+                    if ip_info['country'] == 'IR':
+                        raise Exception('bad country')
+                else:
+                    if str(ip_info) == 'HTTP Error 429: Too Many Requests':
+                        print('ip_info: HTTP Error 429: Too Many Requests')
+                    else:
+                        raise Exception(ip_info)
+            else:
+                self.ip_check_count += 1
+            # ---------------------------------------
+            result = []
+            open_time_list = []
+            print('*** 1- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            complete_open_time_list = self.generate_all_complete_candle_open_time(interval=interval,
+                                                                                  start_datetime=start_datetime,
+                                                                                  end_datetime=end_datetime)
+            print('*** 2- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            data = self.client.get_historical_klines(symbol=symbol, interval=interval, start_str=str(start_datetime),
+                                                     end_str=str(end_datetime - datetime.timedelta(seconds=1)))
+            print('*** 3- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            for item in data:  # try need
+                # print(data)
+                # result.append([str(timestamp_to_datetime(item[0])),  # open time
+                open_time = self.get_candle_open_time(interval=interval, date_time=self.timestamp_to_datetime(item[0]))
+                open_time_list.append(open_time)
+                result.append([symbol,
+                               open_time,  # open time
+                               item[1],  # open
+                               item[2],  # high
+                               item[3],  # low
+                               item[4],  # close
+                               item[5],  # volume
+                               item[8]  # number of trade
+                               ])
+            print('*** 4- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            # find no data candle
+            open_time_list_set = set(open_time_list)
+            null_candle = [x for x in complete_open_time_list if x not in open_time_list_set]
+            print('*** 5- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            # null_candle = []
+            # null_candle_len = 0
+            # diff_count = len(complete_open_time_list) - len(open_time_list_set)
+            # for x in complete_open_time_list:
+            #     if x not in open_time_list_set:
+            #         null_candle.append(x)
+            #         null_candle_len += 1
+            #         if diff_count == null_candle_len:
+            #             # pass
+            #             break
+
+            # add null candle to result list
+            for item in null_candle:
+                result.append([symbol,
+                               item,  # open time
+                               0,  # open
+                               0,  # high
+                               0,  # low
+                               0,  # close
+                               0,  # volume
+                               0  # number of trade
+                               ])
+            print('*** 6- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            if len(complete_open_time_list) != len(result):
+                raise Exception('unexpected data : len(complete_open_time_list) != len(result): {0}!={1}'
+                                .format(len(complete_open_time_list), len(result)))
+            # ---------------------
+            if add_to_database is True:
+                err = self.db.set_complete_candle_historical_data(interval=interval, data=result)
+                print('database error: ', err)
+            print('*** 7- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            print('complete_open_time_list: ', len(complete_open_time_list), complete_open_time_list[0], complete_open_time_list[-1])
+            print('binance open_time_list : ', len(open_time_list), open_time_list[0], open_time_list[-1])
+            print('final result: ', len(result))
+            return result
+
+        except Exception as e:
+            print(str(e))
+            print('sleep 60 second')
+            sleep(60)
+            return str(e)
+
+    def load_and_set_complete_candle_historical_time(self, symbol, interval, start_datetime, end_datetime=None, add_to_database = True, earlier_valid_timestamp=None):
+        # load all candle that start and end time completely in time range
+        start_def = datetime.datetime.utcnow()
+        last_stage_time = start_def
+        # print('000000 ', 'start_datetime', start_datetime, 'end_datetime', end_datetime, 'earlier_valid_timestamp', earlier_valid_timestamp)
+
+        # مشخص کردن زمان شروع
+        if earlier_valid_timestamp is None:
+            earlier_valid_timestamp = self.get_symbol_earlier_valid_timestamp(symbol=symbol, interval=interval)
+            print('1- runtime: ',datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+        if start_datetime < earlier_valid_timestamp:
+            start = earlier_valid_timestamp
+        else:
+            start = start_datetime
+        # زمان شروع بزرگتر از زمان پایان
+        if end_datetime is None:
+            if start > datetime.datetime.utcnow():
+                return 'no eny data in time range'
+        else:
+            if start > end_datetime:
+                return 'no eny data in time range'
+        # -------------------------------------
+        end = start
+        a = []
+        beta = 24
+        i = 0
+        t_sum = 0
+        exit_loop = False
+        round_number = 0
+        while exit_loop == False:
+            print('')
+            print('* load_and_set_complete_candle_historical round_number: ', round_number)
+            # calculate end time on 60 * beta candle
+            if interval == Client.KLINE_INTERVAL_1MINUTE:
+                end = start + datetime.timedelta(hours=1 * beta)
+            elif interval == Client.KLINE_INTERVAL_3MINUTE:
+                end = start + datetime.timedelta(hours=3 * beta)
+            elif interval == Client.KLINE_INTERVAL_5MINUTE:
+                end = start + datetime.timedelta(hours=5 * beta)
+            elif interval == Client.KLINE_INTERVAL_15MINUTE:
+                end = start + datetime.timedelta(hours=15 * beta)
+            elif interval == Client.KLINE_INTERVAL_30MINUTE:
+                end = start + datetime.timedelta(hours=30 * beta)
+            elif interval == Client.KLINE_INTERVAL_1HOUR:
+                end = start + datetime.timedelta(hours=60 * beta)
+            elif interval == Client.KLINE_INTERVAL_2HOUR:
+                end = start + datetime.timedelta(hours=120 * beta)
+            elif interval == Client.KLINE_INTERVAL_4HOUR:
+                end = start + datetime.timedelta(hours=240 * beta)
+            elif interval == Client.KLINE_INTERVAL_6HOUR:
+                end = start + datetime.timedelta(hours=360 * beta)
+            elif interval == Client.KLINE_INTERVAL_8HOUR:
+                end = start + datetime.timedelta(hours=480 * beta)
+            elif interval == Client.KLINE_INTERVAL_12HOUR:
+                end = start + datetime.timedelta(hours=720 * beta)
+            elif interval == Client.KLINE_INTERVAL_1DAY:
+                end = start + datetime.timedelta(days=60 * beta)
+            elif interval == Client.KLINE_INTERVAL_3DAY:
+                end = start + datetime.timedelta(days=180 * beta)
+            elif interval == Client.KLINE_INTERVAL_1WEEK:
+                end = start + datetime.timedelta(days=420 * beta)
+            elif interval == Client.KLINE_INTERVAL_1MONTH:
+                end = start + datetime.timedelta(days=1800 * beta)
+
+            end = self.get_candle_open_time(interval=interval, date_time=end)
+
+            # correct end time
+            now = datetime.datetime.utcnow()
+            if end_datetime is None:  # end_datetime = mow time
+                # latest_valid_end = self.get_last_candle_open_time(interval=interval, date_time=now)
+                min_end = self.get_candle_open_time(interval=interval, date_time=now)
+            else:
+                if end_datetime < now:
+                    min_end = self.get_candle_open_time(interval=interval, date_time=end_datetime)
+                else:
+                    min_end = self.get_candle_open_time(interval=interval, date_time=now)
+
+            if end >= min_end:
+                # set one candle back
+                end = min_end  #  - datetime.timedelta(seconds=1)
+                # print('= end load_and_set_complete_candle_historical while loop =', end)
+                exit_loop = True
+            # ------------------
+            # print(start)
+            # print(end)
+            # print('start', start, 'end', end)
+            print('2- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            complete_open_time_list = self.generate_all_complete_candle_open_time(interval=interval, start_datetime=start, end_datetime=end)
+            print('3- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            db_open_time_list = self.db.get_complete_candle_historical_open_time(symbol=symbol, interval=interval, start_datetime=start, end_datetime=end)
+            print('4- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+            try:
+                print('complete_open_time_list:', len(complete_open_time_list), complete_open_time_list[0], complete_open_time_list[-1])
+                print('db_open_time_list:', len(db_open_time_list), db_open_time_list[0], db_open_time_list[-1])
+            except:
+                pass
+            # db_have_data = True
+            if len(complete_open_time_list) != len(db_open_time_list):
+                # db_have_data = False
+                # print('len(complete_open_time_list) != len(db_open_time_list)', len(complete_open_time_list) , len(db_open_time_list))
+                print('start get data: ===>', '  (start_time: ', start, '  end_time: ', end, ')')
+                sum = 0
+                print('5- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+                last_stage_time = datetime.datetime.utcnow()
+
+                a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval, start_datetime=start,
+                                                                  end_datetime=end, #- datetime.timedelta(seconds=1),
+                                                                  add_to_database=add_to_database)
+                print('6- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+                last_stage_time = datetime.datetime.utcnow()
+
+                try:
+                    for item in a:
+                        # print(item)
+                        sum += 1
+                        t_sum += 1
+                    print('sum round records ', sum)
+
+                except Exception as e:
+                    print(a)
+                    print(e)
+                print('7- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+                last_stage_time = datetime.datetime.utcnow()
+
+            else:  # len(complete_open_time_list) == len(res)
+                # pass
+                # temp = []
+                # for item in db_open_time_list:
+                #     temp.append(item[0])
+                # db_open_time_list = temp
+                # j = 0
+                # while j < len(complete_open_time_list):
+                #     if complete_open_time_list[j] != db_open_time_list[j]:  # not equal list
+                #         db_have_data = False
+                #         # print('complete_open_time_list[i] != db_open_time_list[i]', complete_open_time_list[i] , db_open_time_list[i])
+                #         print('start get data: ===>', '  (start_time: ', start, '  end_time: ', end, ')')
+                #
+                #         sum = 0
+                #         a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval,
+                #                                                           start_datetime=start,
+                #                                                           end_datetime=end- datetime.timedelta(seconds=1),
+                #                                                           add_to_database=add_to_database)
+                #         try:
+                #             for item in a:
+                #                 # print(item)
+                #                 sum += 1
+                #                 t_sum += 1
+                #             print('sum round records ', sum)
+                #
+                #         except Exception as e:
+                #             print(a)
+                #             print(e)
+                #         break
+                #     j += 1
+
+            # if db_have_data is True:
+                print('** database have data **')
+
+            # print('11111 ', 'start', start, 'end', end)
+            start = end
+            # print('22222 ', 'start', start, 'end', end)
+
+            round_number += 1
+            print('8- runtime: ', datetime.datetime.utcnow() - last_stage_time)
+            last_stage_time = datetime.datetime.utcnow()
+
+        print("-- end all round --")
+        print("total record:", t_sum)
+        print("total time:", datetime.datetime.utcnow() - start_def)
+        return True
+
 
 
 

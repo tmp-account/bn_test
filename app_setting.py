@@ -23,7 +23,7 @@ def get_db_info(db_server_id):
         'db_name': 'binance_data',
         'db_username': 'CD2',
         'db_user_password': 'Asdf@13579.',
-        'db_host_name': 'localhost',
+        'db_host_name': '127.0.0.1',
         'db_port': 3306
     }
 
@@ -32,7 +32,7 @@ def get_db_info(db_server_id):
             'db_name': 'binance_data',
             'db_username': 'CD2',
             'db_user_password': 'Asdf@13579.',
-            'db_host_name': 'localhost',
+            'db_host_name': '127.0.0.1',
             'db_port': 3306
         }
 
@@ -41,7 +41,7 @@ def get_db_info(db_server_id):
             'db_name': 'binance_data',
             'db_username': 'CD2',
             'db_user_password': 'Asdf@13579.',
-            'db_host_name': 'localhost',
+            'db_host_name': '127.0.0.1',
             'db_port': 3306
         }
 
@@ -50,7 +50,7 @@ def get_db_info(db_server_id):
             'db_name': 'binance_data',
             'db_username': 'CD2',
             'db_user_password': 'Asdf@13579.',
-            'db_host_name': 'localhost',
+            'db_host_name': '127.0.0.1',
             'db_port': 3306
         }
 
