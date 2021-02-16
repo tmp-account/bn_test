@@ -81,7 +81,7 @@ if __name__ == "__main__":
     import time
     start_time = datetime.datetime.utcnow()
 
-    get_all_data(interval_list=interval_list, coin_base_list=coin_base_list, db_server_id=db_server_id)
+    get_all_data(interval_list=api_interval_list, coin_base_list=api_coin_base_list, db_server_id=db_server_id)
     end_time = datetime.datetime.utcnow()
 
     print('end function ==> start time: {0} end time: {1} run time: {2}'

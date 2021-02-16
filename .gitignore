@@ -130,3 +130,4 @@ dmypy.json
 .idea/
 
 temp_code.py
+runtime_setting.txt

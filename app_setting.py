@@ -91,3 +91,5 @@ def get_db_info(db_server_id):
         }
 
     return db_info
+
+runtime_setting_file_path_name = 'runtime_setting.txt'

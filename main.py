@@ -6,21 +6,21 @@ import datetime
 
 db_server_id = 2
 
-Client_KLINE_INTERVAL_dict = {Client.KLINE_INTERVAL_1MINUTE: 0,
-                              Client.KLINE_INTERVAL_3MINUTE: 1,
-                              Client.KLINE_INTERVAL_5MINUTE: 2,
-                              Client.KLINE_INTERVAL_15MINUTE: 3,
-                              Client.KLINE_INTERVAL_30MINUTE: 4,
-                              Client.KLINE_INTERVAL_1HOUR: 5,
-                              Client.KLINE_INTERVAL_2HOUR: 6,
-                              Client.KLINE_INTERVAL_4HOUR: 7,
-                              Client.KLINE_INTERVAL_6HOUR: 8,
-                              Client.KLINE_INTERVAL_8HOUR: 9,
-                              Client.KLINE_INTERVAL_12HOUR: 10,
-                              Client.KLINE_INTERVAL_1DAY: 11,
-                              Client.KLINE_INTERVAL_3DAY: 12,
-                              Client.KLINE_INTERVAL_1WEEK: 13,
-                              Client.KLINE_INTERVAL_1MONTH: 14}
+# interval_dict = {Client.KLINE_INTERVAL_1MINUTE: 0,
+#                  Client.KLINE_INTERVAL_3MINUTE: 1,
+#                  Client.KLINE_INTERVAL_5MINUTE: 2,
+#                  Client.KLINE_INTERVAL_15MINUTE: 3,
+#                  Client.KLINE_INTERVAL_30MINUTE: 4,
+#                  Client.KLINE_INTERVAL_1HOUR: 5,
+#                  Client.KLINE_INTERVAL_2HOUR: 6,
+#                  Client.KLINE_INTERVAL_4HOUR: 7,
+#                  Client.KLINE_INTERVAL_6HOUR: 8,
+#                  Client.KLINE_INTERVAL_8HOUR: 9,
+#                  Client.KLINE_INTERVAL_12HOUR: 10,
+#                  Client.KLINE_INTERVAL_1DAY: 11,
+#                  Client.KLINE_INTERVAL_3DAY: 12,
+#                  Client.KLINE_INTERVAL_1WEEK: 13,
+#                  Client.KLINE_INTERVAL_1MONTH: 14}
 
 def get_all_data(interval_list, coin_base_list, db_server_id):
     cli = LoadData(api_key=api_key, api_secret=api_secret, db_info=get_db_info(db_server_id=db_server_id),
@@ -43,7 +43,7 @@ def get_all_data(interval_list, coin_base_list, db_server_id):
             for symbol in symbol_list:
                 # print(symbol)
                 # print(Client_KLINE_INTERVAL_dict[interval] , Client_KLINE_INTERVAL_dict[symbol[2]])
-                if Client_KLINE_INTERVAL_dict[interval] < Client_KLINE_INTERVAL_dict[symbol[2]]:
+                if api_interval_dict[interval] < api_interval_dict[symbol[2]]:
                     print('symbol: ', symbol[0], '  earlier_valid_timestamp: ', symbol[1],
                           ' small_valid_interval: ', symbol[2], ' current interval: ', interval)
                     print('interval smallest than small_valid_interval')
@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     db_server_id = 4
 
-    get_all_data(interval_list=interval_list, coin_base_list=coin_base_list, db_server_id=db_server_id)
+    get_all_data(interval_list=api_interval_list, coin_base_list=api_coin_base_list, db_server_id=db_server_id)
 
     print('sleep')
     time.sleep(100)

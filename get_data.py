@@ -42,7 +42,7 @@ def get_lan_ip():
 
 class LoadData:
 
-    def __init__(self, api_key, api_secret, db_info, timestamp_base_time, is_test=True, public_ip=None):
+    def __init__(self, api_key, api_secret, db_info, timestamp_base_time, is_test=True, log_obj=None, public_ip=None, id=0):
         ip_info = get_ip_info()
         if type(ip_info) == type({}):
             if ip_info['country'] == 'IR':
@@ -54,13 +54,14 @@ class LoadData:
             else:
                 exit(0)
 
+        self.id = id
         self.timestamp_base_time = timestamp_base_time
         self.client = Client(api_key, api_secret)
         # for test unit
         if is_test is True:
             self.client.API_URL = 'https://testnet.binance.vision/api'
 
-        self.db = DataBase(db_info=db_info, log_obj=None)
+        self.db = DataBase(db_info=db_info, log_obj=log_obj)
 
         self.ip_check_count = 0
 
@@ -97,24 +98,25 @@ class LoadData:
             data = self.client.get_historical_klines(symbol=symbol, interval=interval, start_str=str(start_datetime),
                                                      end_str=str(end_datetime - datetime.timedelta(seconds=1)))
 
-            for item in data:  # try need
-                # print(data)
-                # result.append([str(timestamp_to_datetime(item[0])),  # open time
-                open_time = self.get_candle_open_time(interval=interval, date_time=self.timestamp_to_datetime(item[0]))
-                open_time_list.append(open_time)
-                result.append([symbol,
-                               open_time,  # open time
-                               item[1],  # open
-                               item[2],  # high
-                               item[3],  # low
-                               item[4],  # close
-                               item[5],  # volume
-                               item[8]  # number of trade
-                               ])
+            if len(data) > 0:
+                for item in data:  # try need
+                    # print(data)
+                    # result.append([str(timestamp_to_datetime(item[0])),  # open time
+                    open_time = self.get_candle_open_time(interval=interval, date_time=self.timestamp_to_datetime(item[0]))
+                    open_time_list.append(open_time)
+                    result.append([symbol,
+                                   open_time,  # open time
+                                   item[1],  # open
+                                   item[2],  # high
+                                   item[3],  # low
+                                   item[4],  # close
+                                   item[5],  # volume
+                                   item[8]  # number of trade
+                                   ])
 
-            # find no data candle
-            open_time_list_set = set(open_time_list)
-            null_candle = [x for x in complete_open_time_list if x not in open_time_list_set]
+                # find no data candle
+                open_time_list_set = set(open_time_list)
+                null_candle = [x for x in complete_open_time_list if x not in open_time_list_set]
 
             # null_candle = []
             # null_candle_len = 0
@@ -128,26 +130,31 @@ class LoadData:
             #             break
 
             # add null candle to result list
-            for item in null_candle:
-                result.append([symbol,
-                               item,  # open time
-                               0,  # open
-                               0,  # high
-                               0,  # low
-                               0,  # close
-                               0,  # volume
-                               0  # number of trade
-                               ])
+                for item in null_candle:
+                    result.append([symbol,
+                                   item,  # open time
+                                   0,  # open
+                                   0,  # high
+                                   0,  # low
+                                   0,  # close
+                                   0,  # volume
+                                   0  # number of trade
+                                     ])
 
-            if len(complete_open_time_list) != len(result):
-                raise Exception('unexpected data : len(complete_open_time_list) != len(result): {0}!={1}'
-                                .format(len(complete_open_time_list), len(result)))
+                if len(complete_open_time_list) != len(result):
+                    print('complete_open_time_list:',complete_open_time_list)
+                    print('binance result:',result)
+                    raise Exception('unexpected data : len(complete_open_time_list) != len(result): {0}!={1}'
+                                    .format(len(complete_open_time_list), len(result)))
             # ---------------------
-            if add_to_database is True:
-                err = self.db.set_complete_candle_historical_data(interval=interval, data=result)
-                print('database error: ', err)
-            print('complete_open_time_list: ', len(complete_open_time_list), complete_open_time_list[0], complete_open_time_list[-1])
-            print('binance open_time_list : ', len(open_time_list), open_time_list[0], open_time_list[-1])
+                if add_to_database is True:
+                    err = self.db.set_complete_candle_historical_data(interval=interval, data=result)
+                    print('database error: ', err)
+                print('complete_open_time_list: ', len(complete_open_time_list), complete_open_time_list[0], complete_open_time_list[-1])
+                print('binance open_time_list : ', len(open_time_list), open_time_list[0], open_time_list[-1])
+            else:
+                print('cant get data from binance')
+
             print('final result: ', len(result))
             return result
 
@@ -214,6 +221,8 @@ class LoadData:
     def load_and_set_complete_candle_historical(self, symbol, interval, start_datetime, end_datetime=None, add_to_database = True, earlier_valid_timestamp=None):
         # load all candle that start and end time completely in time range
         start_def = datetime.datetime.utcnow()
+        print('symbol:{0}  interval: {1}  start_time: {2}  end_time: {3}  earlier_valid_timestamp: {4}'.format
+              (symbol, interval, start_datetime, end_datetime, earlier_valid_timestamp))
         # print('000000 ', 'start_datetime', start_datetime, 'end_datetime', end_datetime, 'earlier_valid_timestamp', earlier_valid_timestamp)
 
         # مشخص کردن زمان شروع
@@ -231,6 +240,7 @@ class LoadData:
             if start > end_datetime:
                 return 'no eny data in time range'
         # -------------------------------------
+        start = self.get_candle_open_time(interval=interval, date_time=start)
         end = start
         a = []
         beta = 24
@@ -300,8 +310,8 @@ class LoadData:
             db_open_time_list = self.db.get_complete_candle_historical_open_time(symbol=symbol, interval=interval, start_datetime=start, end_datetime=end)
 
             try:
-                print('complete_open_time_list:', len(complete_open_time_list), complete_open_time_list[0], complete_open_time_list[-1])
-                print('db_open_time_list:', len(db_open_time_list), db_open_time_list[0], db_open_time_list[-1])
+                print('complete_open_time_list:', len(complete_open_time_list), ' --> ', complete_open_time_list[0], complete_open_time_list[-1])
+                print('db_open_time_list:', len(db_open_time_list), ' --> ', db_open_time_list[0], db_open_time_list[-1])
             except:
                 pass
             # db_have_data = True
@@ -383,12 +393,15 @@ class LoadData:
         # when start and end in range
         result = []
         start = self.get_candle_open_time(interval=interval, date_time=start_datetime)
-        if start < start_datetime:
-            start = self.get_next_candel_open_time(interval=interval, date_time=start)
+        # if start < start_datetime:
+        #     start = self.get_next_candel_open_time(interval=interval, date_time=start)
 
         end = self.get_candle_open_time(interval=interval, date_time=end_datetime)
         # go back one candle
         end = self.get_candle_open_time(interval=interval, date_time=end - datetime.timedelta(seconds=-1))
+
+        if start == end:
+            return result
 
         while True:
             result.append(start)
@@ -401,8 +414,8 @@ class LoadData:
         # when start in range
         result = []
         start = self.get_candle_open_time(interval=interval, date_time=start_datetime)
-        if start < start_datetime:
-            start = self.get_next_candel_open_time(interval=interval, date_time=start)
+        # if start < start_datetime:
+        #     start = self.get_next_candel_open_time(interval=interval, date_time=start)
 
         end = self.get_candle_open_time(interval=interval, date_time=end_datetime)
 

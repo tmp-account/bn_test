@@ -1,3 +1,5 @@
 pymysql
 termcolor
 python-binance
+psutil
+multiprocessing
