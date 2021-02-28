@@ -1,12 +1,13 @@
 from Log import Log_Mod, Logging
 import database
-from termcolor import colored
+# from termcolor import colored
 from time import sleep
 from my_time import get_now_time_second
 from multiprocessing import Process, Lock, Manager
 import psutil
 from get_data import LoadData
 import ast
+from colored_print import colored_print
 
 
 class load_and_set_complete_candle_historical_process_obj(Process):
@@ -18,6 +19,7 @@ class load_and_set_complete_candle_historical_process_obj(Process):
         self.timestamp_base_time = data['timestamp_base_time']
         self.is_test = data['is_test']
         self.public_ip = data['public_ip']
+        self.process_auto_cropped_time = data['process_auto_cropped_time']
 
         self.process_id = data['process_id']
         self.all_process_status = data['all_process_status']
@@ -58,7 +60,8 @@ class load_and_set_complete_candle_historical_process_obj(Process):
                                        log_file_name=log_file_name,
                                        log_table_name=log_table_name,
                                        logging_mod=logging_mod,
-                                       log_obj=None)
+                                       log_obj=None,
+                                       process_auto_cropped_time=self.process_auto_cropped_time)
 
         return obj.run()
 
@@ -71,14 +74,16 @@ class load_and_set_complete_candle_historical_process_obj(Process):
 class load_and_set_complete_candle_historical_multi_process:
 
     def __init__(self, api_key, api_secret, timestamp_base_time, is_test, public_ip,
-                 database_info, wait_list, client_id, runtime_setting_file_path_name):
-        self.print_color = 'cyan'
+                 database_info, wait_list, client_id, runtime_setting_file_path_name, process_auto_cropped_time):
+        # self.print_color = 'cyan'
+        self.p = colored_print(default_text_color='cyan')
         self.api_key = api_key
         self.api_secret = api_secret
         self.timestamp_base_time = timestamp_base_time
         self.is_test = is_test
         self.public_ip = public_ip
         self.runtime_setting_file_path_name = runtime_setting_file_path_name
+        self.process_auto_cropped_time = process_auto_cropped_time
         self.database_info = database_info
         self.db = database.DataBase(db_info=self.database_info)
         # self.client_id = client_id
@@ -135,23 +140,28 @@ class load_and_set_complete_candle_historical_multi_process:
         self.data['is_test'] = self.is_test
         self.data['public_ip'] = self.public_ip
 
+        self.data['process_auto_cropped_time'] = self.process_auto_cropped_time
+
     def set_status(self, obj_name, item, value):
         s = self.all_process_status[obj_name]
         s[item] = value
         self.all_process_status[obj_name] = s
 
-    @staticmethod
-    def terminate_process_tree(process, include_parent=True, timeout=None):
-        print(colored('process id: {}'.format(process.pid), 'blue'))
+    # @staticmethod
+    def terminate_process_tree(self, process, include_parent=True, timeout=None):
+        # print(colored('process id: {}'.format(process.pid), 'blue'))
+        self.p.print('process id: {}'.format(process.pid), 'blue')
 
         process_child = psutil.Process(process.pid).children(recursive=True)
 
-        print(colored(process_child, 'red'))
+        # print(colored(process_child, 'red'))
+        self.p.print(process_child, 'red')
 
         # send SIGTERM
         for ch_p in process_child:
             try:
-                print(colored(ch_p, 'red'))
+                # print(colored(ch_p, 'red'))
+                self.p.print(ch_p, 'red')
                 ch_p.terminate()
             except psutil.NoSuchProcess:
                 pass
@@ -178,15 +188,15 @@ class load_and_set_complete_candle_historical_multi_process:
 
         return True
 
-    def print_c(self, text, color=None):
-        try:
-            if color is None:
-                print(colored(text, self.print_color))
-            else:
-                print(colored('| ', self.print_color) + colored(text, color))
-                # print(colored(text, color))
-        except Exception as e:
-            self.print_c(str(e), 'red')
+    # def print_c(self, text, color=None):
+    #     try:
+    #         if color is None:
+    #             print(colored(text, self.print _color))
+    #         else:
+    #             print(colored('| ', self.print _color) + colored(text, color))
+    #             # print(colored(text, color))
+    #     except Exception as e:
+    #         self.print _c(str(e), 'red')
 
     def stop_all_process(self):
         if self.lock.acquire(timeout=self.lock_acquire_wait) is True:
@@ -196,7 +206,7 @@ class load_and_set_complete_candle_historical_multi_process:
                     self.set_status(p.name, 'stop_flag', True)
 
                 except Exception as e:
-                    self.print_c('cant stop process: {0} ; error: {1}'.format(p.name, str(e)), 'red')
+                    self.p.print('cant stop process: {0} ; error: {1}'.format(p.name, str(e)), 'red')
             self.lock.release()
             self.lock_status = False
 
@@ -213,7 +223,7 @@ class load_and_set_complete_candle_historical_multi_process:
             f.close()
         except Exception as e:
             # file exist
-            self.print_c(str(e))
+            self.p.print(str(e))
 
         return True
 
@@ -234,7 +244,7 @@ class load_and_set_complete_candle_historical_multi_process:
         # self.hang_time = self.max_run_time * 3 * self.max_process
         while True:
             try:
-                self.print_c('get setting')
+                self.p.print('get setting')
                 runtime_setting, error = self.get_runtime_setting()
                 if error is not None:
                     raise Exception(error)
@@ -243,18 +253,18 @@ class load_and_set_complete_candle_historical_multi_process:
                 self.max_process = runtime_setting['max_process']
 
                 # check exit condition
-                self.print_c('check exit condition')
+                self.p.print('check exit condition')
                 if self.first_start_flag is True:
                     self.first_start_flag = False
                 else:
                     if len(self.process_list) == 0 and (main_stop_flag is True or len(self.wait_list) == 0):
-                        self.print_c('exit function from condition: 1')  # end of try
+                        self.p.print('exit function from condition: 1')  # end of try
                         result = True
                         break
 
-                self.print_c('check stop flag')
+                self.p.print('check stop flag')
                 if main_stop_flag is True:
-                    self.print_c('stop all process from user')
+                    self.p.print('stop all process from user')
                     self.stop_all_process()
 
                 # ---- create process object and run it ----
@@ -270,7 +280,7 @@ class load_and_set_complete_candle_historical_multi_process:
                                     break
                                 # ایجاد پروسس جدید
                                 self.process_id += 1
-                                self.print_c('create new process id:{0}'.format(self.process_id))
+                                self.p.print('create new process id:{0}'.format(self.process_id))
                                 self.set_data()
                                 p = load_and_set_complete_candle_historical_process_obj(self.data)
                                 sleep(0.5)
@@ -279,7 +289,7 @@ class load_and_set_complete_candle_historical_multi_process:
 
                         # ایجاد پروسس جدید
                         self.process_id += 1
-                        self.print_c('create new process id:{0}'.format(self.process_id))
+                        self.p.print('create new process id:{0}'.format(self.process_id))
                         self.set_data()
                         p = load_and_set_complete_candle_historical_process_obj(self.data)
                         sleep(0.5)
@@ -287,13 +297,13 @@ class load_and_set_complete_candle_historical_multi_process:
                         self.process_list.append(p)
 
                     elif len(self.process_list) > self.max_process:
-                        self.print_c('stop all process because upper than max process')
+                        self.p.print('stop all process because upper than max process')
                         self.stop_all_process()
 
                 # ---- check process runtime ----
                 # if self.lock.acquire(timeout=self.lock_acquire_wait) is True:
                 #     self.lock_status = True
-                #     self.print_c('check process runtime')
+                #     self.p.print('check process runtime')
                 #     for p in self.process_list:
                 #         # check started process
                 #         if p.name in self.status:
@@ -301,16 +311,16 @@ class load_and_set_complete_candle_historical_multi_process:
                 #                 # check process runtime
                 #                 try:
                 #                     if (get_now_time_second() - self.status[p.name]['last_run_time']) > self.max_run_time:
-                #                         self.print_c('stop process {0} because max runtime'.format(p.name))
+                #                         self.p.print('stop process {0} because max runtime'.format(p.name))
                 #                         self.set_status(p.name, 'stop_flag', True)
                 #
                 #                     # if  (get_now_time_second() - self.status[p.name]['last_run_time']) > self.hang_time:
-                #                     #     self.print_c('terminate process {0} because hanged')
+                #                     #     self.p.print('terminate process {0} because hanged')
                 #                     #
                 #                     #     hang_item = self.status[p.name]['current_running_share']
                 #                     #     if hang_item not in self.hang_list:
                 #                     #         self.hang_list.append(hang_item)
-                #                     #         self.print_c('terminate process: {0} ; en_symbol_12_digit_code: {1} ; tsetmc_id: {2} ; date_m: {3} ; process: {4}'.format(p.name, hang_item[0], hang_item[1],hang_item[2], p))
+                #                     #         self.p.print('terminate process: {0} ; en_symbol_12_digit_code: {1} ; tsetmc_id: {2} ; date_m: {3} ; process: {4}'.format(p.name, hang_item[0], hang_item[1],hang_item[2], p))
                 #                     #         # time.sleep(15)
                 #                     #         if self.terminate_process_tree(process=p, include_parent=True, timeout=10) is True:
                 #                     #             # self.db.add_share_to_fail_hang_share(en_symbol_12_digit_code=hang_item[0], date_m=str(hang_item[2]))
@@ -323,16 +333,16 @@ class load_and_set_complete_candle_historical_multi_process:
                 #                     #             self.db.add_share_to_fail_hang_share(en_symbol_12_digit_code=hang_item[0], date_m=hang_item[1])
                 #
                 #                 except Exception as e:
-                #                     self.print_c('except: {0} ; error: {1} ; process: {2}'.format('cant check process runtime', str(e), p))
+                #                     self.p.print('except: {0} ; error: {1} ; process: {2}'.format('cant check process runtime', str(e), p))
                 #
                 #     self.lock.release()
                 #     self.lock_status = False
 
                 # ---- check not alive process ----
-                self.print_c('check not alive process')
+                self.p.print('check not alive process')
                 for p in self.process_list:
                     if p.is_alive() is False:
-                        self.print_c('terminate process: {}'.format(p.name))
+                        self.p.print('terminate process: {}'.format(p.name))
                         p.terminate()
                         p.join()
                         self.process_list.remove(p)
@@ -357,7 +367,7 @@ class load_and_set_complete_candle_historical_multi_process:
                 #     hang_symbol.append('{0}:{1}:{2}'.format(p[0], p[1], p[2]))
 
                 color = 'magenta'
-                self.print_c('wait_list:{0}  complete_list:{1}  running_list:{2}  fail_list:{3}  '
+                self.p.print('wait_list:{0}  complete_list:{1}  running_list:{2}  fail_list:{3}  '
                              'alive_process:{4}  symbols:{5}'
                              .format(len(self.wait_list), len(self.complete_list), len(self.running_list),
                                      len(self.fail_list), len(self.process_list),
@@ -371,39 +381,39 @@ class load_and_set_complete_candle_historical_multi_process:
 
             except Exception as e:
                 if self.lock_status is True:
-                    self.print_c('main except: lock status: True :' + str(3) + ' : ' + str(e))
+                    self.p.print('main except: lock status: True :' + str(3) + ' : ' + str(e))
                     for p in self.process_list:
                         try:
-                            self.print_c('terminate process: ' + p.name)
+                            self.p.print('terminate process: ' + p.name)
                             self.set_status(p.name, 'stop_flag', True)
                         except Exception as e:
-                            self.print_c('main except: ' + str(4) + ' : ' + str(e))
+                            self.p.print('main except: ' + str(4) + ' : ' + str(e))
                     self.lock.release()
                 else:
-                    self.print_c('main except: lock status: False :' + str(5) + ' : ' + str(e))
+                    self.p.print('main except: lock status: False :' + str(5) + ' : ' + str(e))
                     self.lock.acquire()
                     for p in self.process_list:
                         try:
-                            self.print_c('terminate process: ' + p.name)
+                            self.p.print('terminate process: ' + p.name)
                             self.set_status(p.name, 'stop_flag', True)
                         except Exception as e:
-                            self.print_c('main except: ' + str(6) + ' : ' + str(e))
+                            self.p.print('main except: ' + str(6) + ' : ' + str(e))
                     self.lock.release()
 
-                self.print_c('wait to exit all process')
+                self.p.print('wait to exit all process')
                 while len(self.process_list) > 0:
                     try:
                         for p in self.process_list:
-                            self.print_c('terminate process: {}'.format(p.name))
+                            self.p.print('terminate process: {}'.format(p.name))
                             p.terminate()
 
                         for p in self.process_list:
-                            self.print_c('wait to exit thread: {}'.format(p.name))
+                            self.p.print('wait to exit thread: {}'.format(p.name))
                             p.join()
                     except:
                         pass
 
-                self.print_c('exit main: 2')
+                self.p.print('exit main: 2')
                 result = False
                 break
         return result
@@ -413,9 +423,10 @@ class get_data_multiprocessing:
 
     def __init__(self, process_id, db_info, lock, lock_acquire_wait,
                  wait_list, complete_list, running_list, fail_list, all_process_status,
-                 api_key, api_secret, timestamp_base_time, is_test, public_ip,
+                 api_key, api_secret, timestamp_base_time, is_test, public_ip,process_auto_cropped_time,
                  log_file_name=None, log_table_name=None, logging_mod=None, log_obj=None):
 
+        self.p = colored_print(default_text_color='cyan')
         self.process_id = process_id
 
         self.wait_list = wait_list
@@ -424,6 +435,7 @@ class get_data_multiprocessing:
         self.fail_list = fail_list
         self.lock = lock
         self.lock_acquire_wait = lock_acquire_wait
+        self.process_auto_cropped_time = process_auto_cropped_time
         # ---- define status dict and setup it ----
         self.obj_status = dict()
         self.all_process_status = all_process_status
@@ -459,21 +471,21 @@ class get_data_multiprocessing:
         # if self.db is None:
         #     return
         # ------------------------------
-        self.print_color = 'green'
+        # self.print_color = 'green'
 
         self.client_obj = LoadData(api_key=api_key, api_secret=api_secret, db_info=db_info,
                                    timestamp_base_time=timestamp_base_time, is_test=is_test,
                                    log_obj=self.log_obj, public_ip=public_ip)
 
     # -------------------------------
-    def print_c(self, text, color=None):
-        try:
-            if color is None:
-                print(colored(text, self.print_color))
-            else:
-                print(colored('| ', self.print_color) + colored(text, color))
-        except Exception as e:
-            self.print_c(str(e), 'red')
+    # def print_c(self, text, color=None):
+    #     try:
+    #         if color is None:
+    #             print(colored(text, self.print _color))
+    #         else:
+    #             print(colored('| ', self.print _color) + colored(text, color))
+    #     except Exception as e:
+    #         self.print _c(str(e), 'red')
 
     def set_status(self, item, value):
         self.obj_status = self.all_process_status[str(self.process_id)]
@@ -489,7 +501,7 @@ class get_data_multiprocessing:
         # error = None
         # error_code = None
 
-        self.print_c('worker: {0} :{1}'.format(self.process_id, 'start run function'))
+        self.p.print('worker: {0} :{1}'.format(self.process_id, 'start run function'))
 
         start_time = get_now_time_second()
 
@@ -503,7 +515,7 @@ class get_data_multiprocessing:
             if len(self.wait_list) <= 0:
                 self.lock.release()
                 lock_status = False
-                self.print_c('worker: {0} :{1}'.format(self.process_id, 'wait list empty'))
+                self.p.print('worker: {0} :{1}'.format(self.process_id, 'wait list empty'))
                 break
 
             #  گرفتن یک آیتم
@@ -523,7 +535,7 @@ class get_data_multiprocessing:
                 self.current_running_crypto = None
                 self.lock.release()
                 lock_status = False
-                self.print_c('worker: {0} :{1} ;{2}'.format(self.process_id, 'get new crypto : fail', str(e)))
+                self.p.print('worker: {0} :{1} ;{2}'.format(self.process_id, 'get new crypto : fail', str(e)))
                 continue
 
             self.set_status('current_running_share', self.current_running_crypto)
@@ -536,18 +548,30 @@ class get_data_multiprocessing:
             earlier_valid_timestamp = self.current_running_crypto[5]
 
             try:
-                self.print_c('worker: {0} :{1}'.format(self.process_id, 'start collect data'))
+                self.p.print('worker: {0} :{1}'.format(self.process_id, 'start collect data'))
                 self.set_status('state', 'running')
-                error = self.client_obj.load_and_set_complete_candle_historical(symbol=symbol,
-                                                                                interval=interval,
-                                                                                start_datetime=start_datetime,
-                                                                                end_datetime=end_datetime,
-                                                                                add_to_database=add_to_database,
-                                                                                earlier_valid_timestamp=earlier_valid_timestamp)
+
+                if self.process_auto_cropped_time is True:
+                    error = self.client_obj.load_and_set_complete_candle_historical_auto_cropped_time(
+                        symbol=symbol,
+                        interval=interval,
+                        start_datetime=start_datetime,
+                        end_datetime=end_datetime,
+                        add_to_database=add_to_database,
+                        earlier_valid_timestamp=earlier_valid_timestamp)
+                else:
+                    error = self.client_obj.load_and_set_complete_candle_historical_do_not_cropped_time(
+                        symbol=symbol,
+                        interval=interval,
+                        start_datetime=start_datetime,
+                        end_datetime=end_datetime,
+                        add_to_database=add_to_database,
+                        earlier_valid_timestamp=earlier_valid_timestamp)
 
                 if error is not True:
-                    self.print_c('---  error: {}'.format(error))
-                    raise Exception(error)
+                    self.p.print('---  error: {}'.format(error))
+                    if error != 'no eny data in time range':
+                        raise Exception(error)
 
                 self.lock.acquire()
                 lock_status = True
@@ -556,35 +580,35 @@ class get_data_multiprocessing:
                 self.lock.release()
                 lock_status = False
 
-                self.print_c('worker: {0} :{1}'.format(self.process_id, 'end collect data'))
+                self.p.print('worker: {0} :{1}'.format(self.process_id, 'end collect data'))
 
             except Exception as e:
                 # sleep(5)
                 if lock_status is True:
-                    self.print_c(
+                    self.p.print(
                         'worker {0} except: lock status: {1} ; error: {2}'.format(str(self.process_id), True, str(e)))
                     self.set_status('state', 'failing')
                     self.lock.release()
                 else:
-                    # self.print_c('worker {0} except: lock status: {1} : {2} :{3}'.format(str(self.id), False, 14, e))
-                    self.print_c(
+                    # self.p.print('worker {0} except: lock status: {1} : {2} :{3}'.format(str(self.id), False, 14, e))
+                    self.p.print(
                         'worker {0} except: lock status: {1} ; error: {2}'.format(str(self.process_id), False, str(e)))
                     self.set_status('state', 'failing')
 
                 # try:
-                #     self.print_c('worker: {0} : except: {1}'.format(current_process().name, 'rollback data'))
+                #     self.p.print('worker: {0} : except: {1}'.format(current_process().name, 'rollback data'))
                 #     self.db.collect_all_share_data_rollback(en_symbol_12_digit_code, tsetmc_id, date_m, error_msg=error, error_code=error_code)
             # finally:
                 self.lock.acquire()
                 self.running_list.remove(self.current_running_crypto)
                 self.fail_list.append(self.current_running_crypto)
                 self.lock.release()
-                self.print_c('worker: {0} :{1}'.format(str(self.process_id), 'fail'))
+                self.p.print('worker: {0} :{1}'.format(str(self.process_id), 'fail'))
 
-        self.print_c('worker: {0} :{1}'.format(str(self.process_id), 'quit'))
+        self.p.print('worker: {0} :{1}'.format(str(self.process_id), 'quit'))
 
         end_time = get_now_time_second()
 
-        self.print_c('runtime:{0}'.format(end_time - start_time), color='red')
+        self.p.print('runtime:{0}'.format(end_time - start_time), color='red')
 
         return True

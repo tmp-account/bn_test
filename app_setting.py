@@ -93,3 +93,38 @@ def get_db_info(db_server_id):
     return db_info
 
 runtime_setting_file_path_name = 'runtime_setting.txt'
+
+from colored_print import colored_print
+
+q = colored_print('cyan')
+
+class test():
+    a = colored_print('red')
+
+    def __init__(self):
+        self.b = colored_print('green')
+
+    def t(self):
+        self.a.print('t a')
+        self.a.default_text_color='blue'
+        self.a.print('t a')
+
+
+    def s(self):
+        self.b.print('s b')
+        self.b.default_text_color='cyan'
+
+        self.b.print('s b')
+
+    def d(self):
+        q.print('d b')
+        q.default_text_color='red'
+
+        q.print('d b')
+
+if __name__ == "__main__":
+    obj = test()
+
+    obj.t()
+    obj.s()
+    obj.d()

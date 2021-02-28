@@ -56,7 +56,7 @@ class LoadData:
 
         self.id = id
         self.timestamp_base_time = timestamp_base_time
-        self.client = Client(api_key, api_secret)
+        self.client = Client(api_key, api_secret, {"timeout": 120})
         # for test unit
         if is_test is True:
             self.client.API_URL = 'https://testnet.binance.vision/api'
@@ -64,6 +64,7 @@ class LoadData:
         self.db = DataBase(db_info=db_info, log_obj=log_obj)
 
         self.ip_check_count = 0
+        self.x_xmb_used_weight_limit = 600
 
     def timestamp_to_datetime(self, timestamp):
         return self.timestamp_base_time + datetime.timedelta(seconds=timestamp / 1000)
@@ -97,6 +98,14 @@ class LoadData:
 
             data = self.client.get_historical_klines(symbol=symbol, interval=interval, start_str=str(start_datetime),
                                                      end_str=str(end_datetime - datetime.timedelta(seconds=1)))
+            # print('--- 2 ---')
+            # print(self.client.response.headers)
+            # x_xmb_used_weight = int(self.client.response.headers['x-mbx-used-weight'])
+            # slow down process
+            x_xmb_used_weight_1m = int(self.client.response.headers['x-mbx-used-weight-1m'])
+            if x_xmb_used_weight_1m > self.x_xmb_used_weight_limit:
+                sleep_time = ((int(self.id) + 1) * (x_xmb_used_weight_1m - self.x_xmb_used_weight_limit)) / 1000
+                sleep(round(sleep_time))
 
             if len(data) > 0:
                 for item in data:  # try need
@@ -118,18 +127,7 @@ class LoadData:
                 open_time_list_set = set(open_time_list)
                 null_candle = [x for x in complete_open_time_list if x not in open_time_list_set]
 
-            # null_candle = []
-            # null_candle_len = 0
-            # diff_count = len(complete_open_time_list) - len(open_time_list_set)
-            # for x in complete_open_time_list:
-            #     if x not in open_time_list_set:
-            #         null_candle.append(x)
-            #         null_candle_len += 1
-            #         if diff_count == null_candle_len:
-            #             # pass
-            #             break
-
-            # add null candle to result list
+                # add null candle to result list
                 for item in null_candle:
                     result.append([symbol,
                                    item,  # open time
@@ -160,8 +158,8 @@ class LoadData:
 
         except Exception as e:
             print(str(e))
-            print('sleep 60 second')
-            sleep(60)
+            # print('sleep 60 second')
+            # sleep(60)
             return str(e)
 
     def get_candle_open_time(self, interval, date_time):
@@ -218,12 +216,11 @@ class LoadData:
     def get_symbol_earlier_valid_timestamp(self, symbol, interval):
         return self.timestamp_to_datetime(self.client._get_earliest_valid_timestamp(symbol, interval))
 
-    def load_and_set_complete_candle_historical(self, symbol, interval, start_datetime, end_datetime=None, add_to_database = True, earlier_valid_timestamp=None):
+    def load_and_set_complete_candle_historical_auto_cropped_time(self, symbol, interval, start_datetime, end_datetime=None, add_to_database = True, earlier_valid_timestamp=None):
         # load all candle that start and end time completely in time range
         start_def = datetime.datetime.utcnow()
         print('symbol:{0}  interval: {1}  start_time: {2}  end_time: {3}  earlier_valid_timestamp: {4}'.format
               (symbol, interval, start_datetime, end_datetime, earlier_valid_timestamp))
-        # print('000000 ', 'start_datetime', start_datetime, 'end_datetime', end_datetime, 'earlier_valid_timestamp', earlier_valid_timestamp)
 
         # مشخص کردن زمان شروع
         if earlier_valid_timestamp is None:
@@ -237,14 +234,13 @@ class LoadData:
             if start > datetime.datetime.utcnow():
                 return 'no eny data in time range'
         else:
-            if start > end_datetime:
+            if start >= end_datetime:
                 return 'no eny data in time range'
         # -------------------------------------
         start = self.get_candle_open_time(interval=interval, date_time=start)
         end = start
         a = []
         beta = 24
-        i = 0
         t_sum = 0
         exit_loop = False
         round_number = 0
@@ -288,7 +284,6 @@ class LoadData:
             # correct end time
             now = datetime.datetime.utcnow()
             if end_datetime is None:  # end_datetime = mow time
-                # latest_valid_end = self.get_last_candle_open_time(interval=interval, date_time=now)
                 min_end = self.get_candle_open_time(interval=interval, date_time=now)
             else:
                 if end_datetime < now:
@@ -297,15 +292,9 @@ class LoadData:
                     min_end = self.get_candle_open_time(interval=interval, date_time=now)
 
             if end >= min_end:
-                # set one candle back
-                end = min_end  #  - datetime.timedelta(seconds=1)
-                # print('= end load_and_set_complete_candle_historical while loop =', end)
+                end = min_end
                 exit_loop = True
             # ------------------
-            # print(start)
-            # print(end)
-            # print('start', start, 'end', end)
-
             complete_open_time_list = self.generate_all_complete_candle_open_time(interval=interval, start_datetime=start, end_datetime=end)
             db_open_time_list = self.db.get_complete_candle_historical_open_time(symbol=symbol, interval=interval, start_datetime=start, end_datetime=end)
 
@@ -324,27 +313,89 @@ class LoadData:
                                                                   end_datetime=end, #- datetime.timedelta(seconds=1),
                                                                   add_to_database=add_to_database)
                 try:
-                    for item in a:
-                        # print(item)
-                        sum += 1
-                        t_sum += 1
+                    if type(a) == type(' '):
+                        raise Exception(a)
+                    sum = len(a)
+                    t_sum += sum
                     print('sum round records ', sum)
 
                 except Exception as e:
-                    print(a)
+                    # print(a)
                     print(e)
 
             else:
                 print('** database have data **')
 
-            # print('11111 ', 'start', start, 'end', end)
             start = end
-            # print('22222 ', 'start', start, 'end', end)
-
             round_number += 1
 
         print("-- end all round --")
         print("total record:", t_sum)
+        print("total time:", datetime.datetime.utcnow() - start_def)
+        return True
+
+    def load_and_set_complete_candle_historical_do_not_cropped_time(self, symbol, interval, start_datetime, end_datetime=None, add_to_database = True, earlier_valid_timestamp=None):
+        # load all candle that start and end time completely in time range
+        start_def = datetime.datetime.utcnow()
+        print('symbol:{0}  interval: {1}  start_time: {2}  end_time: {3}  earlier_valid_timestamp: {4}'.format
+              (symbol, interval, start_datetime, end_datetime, earlier_valid_timestamp))
+
+        # define end time
+        now = datetime.datetime.utcnow()
+        if end_datetime is None:  # end_datetime = now time
+            end = self.get_candle_open_time(interval=interval, date_time=now)
+        else:
+            if end_datetime < now:
+                end = self.get_candle_open_time(interval=interval, date_time=end_datetime)
+            else:
+                end = self.get_candle_open_time(interval=interval, date_time=now)
+
+        # define start time
+        # مشخص کردن زمان شروع
+        if earlier_valid_timestamp is None:
+            earlier_valid_timestamp = self.get_symbol_earlier_valid_timestamp(symbol=symbol, interval=interval)
+        if start_datetime < earlier_valid_timestamp:
+            # start = earlier_valid_timestamp
+            start = self.get_candle_open_time(interval=interval, date_time=earlier_valid_timestamp)
+        else:
+            # start = start_datetime
+            start = self.get_candle_open_time(interval=interval, date_time=start_datetime)
+        # زمان شروع بزرگتر از زمان پایان
+        if start >= end:
+            return 'no eny data in time range'
+
+        # -------------------------------------
+        complete_open_time_list = self.generate_all_complete_candle_open_time(interval=interval, start_datetime=start,
+                                                                              end_datetime=end)
+        db_open_time_list = self.db.get_complete_candle_historical_open_time(symbol=symbol, interval=interval,
+                                                                             start_datetime=start, end_datetime=end)
+        try:
+            print('complete_open_time_list:', len(complete_open_time_list), ' --> ', complete_open_time_list[0],
+                  complete_open_time_list[-1])
+            print('db_open_time_list:', len(db_open_time_list), ' --> ', db_open_time_list[0], db_open_time_list[-1])
+        except:
+            pass
+
+        if len(complete_open_time_list) != len(db_open_time_list):
+            # print('len(complete_open_time_list) != len(db_open_time_list)', len(complete_open_time_list) , len(db_open_time_list))
+            print('start get data: ===>', '  (start_time: ', start, '  end_time: ', end, ')')
+            a = self._load_and_set_complete_candle_historical(symbol=symbol, interval=interval, start_datetime=start,
+                                                              end_datetime=end,
+                                                              add_to_database=add_to_database)
+            try:
+                if type(a) == type(' '):
+                    raise Exception(a)
+                sum = len(a)
+                print("total record:", sum)
+
+            except Exception as e:
+                print("total time:", datetime.datetime.utcnow() - start_def)
+                # print(e)
+                return str(e)
+
+        else:
+            print('** database have data **')
+
         print("total time:", datetime.datetime.utcnow() - start_def)
         return True
 
@@ -850,7 +901,7 @@ if __name__ == "__main__":
 
 
     print('start', start_datetime, 'end', end_datetime)
-    res = cli.load_and_set_complete_candle_historical(symbol=symbol, interval=interval, start_datetime=start_datetime, end_datetime=end_datetime,add_to_database=True)
+    res = cli.load_and_set_complete_candle_historical_auto_cropped_time(symbol=symbol, interval=interval, start_datetime=start_datetime, end_datetime=end_datetime, add_to_database=True)
 
     try:
         print('###', len(res), res[0][1], res[-1][1])
@@ -886,9 +937,9 @@ if __name__ == "__main__":
     print('db_open_time_list: ', len(db_open_time_list), db_open_time_list)
     print('3 ===============')
 
-    res=cli.load_and_set_complete_candle_historical(symbol=symbol, start_datetime=start_datetime, interval=interval,
-                                                    end_datetime=end_datetime, add_to_database=True,
-                                                    earlier_valid_timestamp=None)
+    res=cli.load_and_set_complete_candle_historical_auto_cropped_time(symbol=symbol, start_datetime=start_datetime, interval=interval,
+                                                                      end_datetime=end_datetime, add_to_database=True,
+                                                                      earlier_valid_timestamp=None)
     print('load_and_set_complete_candle_historical: ', len(res), res)
 
 

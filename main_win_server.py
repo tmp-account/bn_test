@@ -65,12 +65,12 @@ def get_all_data(interval_list, coin_base_list, db_server_id):
                       '  earlier_valid_timestamp: ', earlier_valid_timestamp, ' start_time: ', start)
                 count_valid += 1
                 print('count_valid: ', count_valid)
-                err = cli.load_and_set_complete_candle_historical(symbol=symbol[0],
-                                                                  interval=interval,
-                                                                  start_datetime=start,
-                                                                  end_datetime=end_time,
-                                                                  add_to_database=True,
-                                                                  earlier_valid_timestamp=earlier_valid_timestamp)
+                err = cli.load_and_set_complete_candle_historical_auto_cropped_time(symbol=symbol[0],
+                                                                                    interval=interval,
+                                                                                    start_datetime=start,
+                                                                                    end_datetime=end_time,
+                                                                                    add_to_database=True,
+                                                                                    earlier_valid_timestamp=earlier_valid_timestamp)
 
                 print(err)
                 print("========================================================================")
